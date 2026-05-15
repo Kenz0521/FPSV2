@@ -4,8 +4,12 @@ using UnityEngine;
 
 public class FPSController : MonoBehaviour
 {
+
     // references
     CharacterController controller;
+
+    FPSInput input;
+
     [SerializeField] GameObject cam;
     [SerializeField] Transform gunHold;
     [SerializeField] Gun initialGun;
@@ -22,27 +26,32 @@ public class FPSController : MonoBehaviour
     Vector3 velocity;
     bool grounded;
     float xRotation;
+
     List<Gun> equippedGuns = new List<Gun>();
+
     int gunIndex = 0;
+
     Gun currentGun = null;
 
     // properties
     public GameObject Cam { get { return cam; } }
-    
 
     private void Awake()
     {
-        
+
     }
 
     // Start is called before the first frame update
     void Start()
     {
         controller = GetComponent<CharacterController>();
+
+        input = GetComponent<FPSInput>();
+
         Cursor.lockState = CursorLockMode.Locked;
 
         // start with a gun
-        if(initialGun != null)
+        if (initialGun != null)
             AddGun(initialGun);
 
         origin = transform.position;
@@ -52,32 +61,53 @@ public class FPSController : MonoBehaviour
     void Update()
     {
         Movement();
+
         Look();
+
         HandleSwitchGun();
+
         FireGun();
 
         // always go back to "no velocity"
-        // "velocity" is for movement speed that we gain in addition to our movement (falling, knockback, etc.)
+        // "velocity" is for movement speed that we gain in addition to our movement
+        // (falling, knockback, etc.)
         Vector3 noVelocity = new Vector3(0, velocity.y, 0);
-        velocity = Vector3.Lerp(velocity, noVelocity, 5 * Time.deltaTime);
+
+        velocity = Vector3.Lerp(
+            velocity,
+            noVelocity,
+            5 * Time.deltaTime
+        );
     }
 
     void Movement()
     {
         grounded = controller.isGrounded;
 
-        if(grounded && velocity.y < 0)
+        if (grounded && velocity.y < 0)
         {
-            velocity.y = -1;// -0.5f;
+            velocity.y = -1;
         }
 
         Vector2 movement = GetPlayerMovementVector();
-        Vector3 move = transform.right * movement.x + transform.forward * movement.y;
-        controller.Move(move * movementSpeed * (GetSprint() ? 2 : 1) * Time.deltaTime);
 
-        if (Input.GetButtonDown("Jump") && grounded)
+        Vector3 move =
+            transform.right * movement.x +
+            transform.forward * movement.y;
+
+        controller.Move(
+            move *
+            movementSpeed *
+            (GetSprint() ? 2 : 1) *
+            Time.deltaTime
+        );
+
+        // NEW INPUT SYSTEM JUMP
+        if (input.jumpPressed && grounded)
         {
-            velocity.y += Mathf.Sqrt (jumpForce * -1 * gravity);
+            velocity.y += Mathf.Sqrt(
+                jumpForce * -1 * gravity
+            );
         }
 
         velocity.y += gravity * Time.deltaTime;
@@ -88,34 +118,67 @@ public class FPSController : MonoBehaviour
     void Look()
     {
         Vector2 looking = GetPlayerLook();
-        float lookX = looking.x * lookSensitivityX * Time.deltaTime;
-        float lookY = looking.y * lookSensitivityY * Time.deltaTime;
+
+        float lookX = looking.x * lookSensitivityX;
+        float lookY = looking.y * lookSensitivityY;
 
         xRotation -= lookY;
+
         xRotation = Mathf.Clamp(xRotation, -90f, 90f);
 
-        cam.transform.localRotation = Quaternion.Euler(xRotation, 0f, 0f);
+        cam.transform.localRotation =
+            Quaternion.Euler(xRotation, 0f, 0f);
 
         transform.Rotate(Vector3.up * lookX);
     }
+    /*void Look()
+    {
+        Vector2 looking = GetPlayerLook();
+
+        float lookX =
+            looking.x *
+            lookSensitivityX;
+            
+
+        float lookY =
+            looking.y *
+            lookSensitivityY; 
+            
+
+        xRotation -= lookY;
+
+        xRotation = Mathf.Clamp(
+            xRotation,
+            -90f,
+            90f
+        );
+
+        cam.transform.localRotation =
+            Quaternion.Euler(xRotation, 0f, 0f);
+
+        transform.Rotate(Vector3.up * lookX);
+    }*/
 
     void HandleSwitchGun()
     {
         if (equippedGuns.Count == 0)
             return;
 
-        if(Input.GetAxis("Mouse ScrollWheel") > 0)
+        // NEW INPUT SYSTEM SCROLL
+        if (input.scrollValue > 0)
         {
             gunIndex++;
+
             if (gunIndex > equippedGuns.Count - 1)
                 gunIndex = 0;
 
             EquipGun(equippedGuns[gunIndex]);
         }
 
-        else if (Input.GetAxis("Mouse ScrollWheel") < 0)
+        else if (input.scrollValue < 0)
         {
             gunIndex--;
+
             if (gunIndex < 0)
                 gunIndex = equippedGuns.Count - 1;
 
@@ -129,20 +192,20 @@ public class FPSController : MonoBehaviour
         if (currentGun == null)
             return;
 
-        // pressed the fire button
-        if(GetPressFire())
+        // pressed fire
+        if (GetPressFire())
         {
             currentGun?.AttemptFire();
         }
 
-        // holding the fire button (for automatic)
-        else if(GetHoldFire())
+        // hold fire for automatic weapons
+        else if (GetHoldFire())
         {
             if (currentGun.AttemptAutomaticFire())
                 currentGun?.AttemptFire();
         }
 
-        // pressed the alt fire button
+        // alt fire
         if (GetPressAltFire())
         {
             currentGun?.AttemptAltFire();
@@ -151,14 +214,18 @@ public class FPSController : MonoBehaviour
 
     void EquipGun(Gun g)
     {
-        // disable current gun, if there is one
+        // disable current gun
         currentGun?.Unequip();
+
         currentGun?.gameObject.SetActive(false);
 
-        // enable the new gun
+        // enable new gun
         g.gameObject.SetActive(true);
+
         g.transform.parent = gunHold;
+
         g.transform.localPosition = Vector3.zero;
+
         currentGun = g;
 
         g.Equip(this);
@@ -168,13 +235,13 @@ public class FPSController : MonoBehaviour
 
     public void AddGun(Gun g)
     {
-        // add new gun to the list
+        // add new gun
         equippedGuns.Add(g);
 
-        // our index is the last one/new one
+        // set index
         gunIndex = equippedGuns.Count - 1;
 
-        // put gun in the right place
+        // equip it
         EquipGun(g);
     }
 
@@ -188,55 +255,60 @@ public class FPSController : MonoBehaviour
         transform.position = origin;
     }
 
-    // Input methods
+    // INPUT METHODS
+    // NOW USING FPSInput + UNITY EVENTS
 
     bool GetPressFire()
     {
-        return Input.GetButtonDown("Fire1");
+        return input.firePressed;
     }
 
     bool GetHoldFire()
     {
-        return Input.GetButton("Fire1");
+        return input.fireHeld;
     }
 
     bool GetPressAltFire()
     {
-        return Input.GetButtonDown("Fire2");
+        return input.altFirePressed;
     }
 
     Vector2 GetPlayerMovementVector()
     {
-        return new Vector2(Input.GetAxis("Horizontal"), Input.GetAxis("Vertical"));
+        return input.movement;
     }
 
     Vector2 GetPlayerLook()
     {
-        return new Vector2(Input.GetAxis("Mouse X"), Input.GetAxis("Mouse Y"));
+        return input.look;
     }
 
     bool GetSprint()
     {
-        return Input.GetButton("Sprint");
+        return input.sprintHeld;
     }
 
     // Collision methods
 
-    // Character Controller can't use OnCollisionEnter :D thanks Unity
-    private void OnControllerColliderHit(ControllerColliderHit hit)
+    // Character Controller can't use OnCollisionEnter
+    private void OnControllerColliderHit(
+        ControllerColliderHit hit
+    )
     {
         if (hit.gameObject.GetComponent<Damager>())
         {
-            var collisionPoint = hit.collider.ClosestPoint(transform.position);
-            var knockbackAngle = (transform.position - collisionPoint).normalized;
+            var collisionPoint =
+                hit.collider.ClosestPoint(transform.position);
+
+            var knockbackAngle =
+                (transform.position - collisionPoint).normalized;
+
             velocity = (20 * knockbackAngle);
         }
 
-        if (hit.gameObject.GetComponent <KillZone>())
+        if (hit.gameObject.GetComponent<KillZone>())
         {
             Respawn();
         }
     }
-
-
 }
