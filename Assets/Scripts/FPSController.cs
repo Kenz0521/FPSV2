@@ -311,4 +311,8 @@ public class FPSController : MonoBehaviour
             Respawn();
         }
     }
+    public void TakeHit()
+    {
+        Debug.Log("Player Hit!");
+    }
 }
